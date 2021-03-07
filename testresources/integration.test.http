@@ -1,0 +1,33 @@
+###
+POST http://localhost:8081/auth
+Content-Type: application/json
+
+{
+  "username": "test-user",
+  "password": "knmvftsdjhjwysztuvviewmqlzsaozwt"
+}
+
+> {% client.global.set("jwt_token", response.body.toString()); %}
+
+###
+
+GET http://localhost:8081/diary/list/2021
+Authorization: Bearer {{jwt_token}}
+
+###
+POST http://localhost:8081/diary/2021/03/21?title=Test&description=mydescription
+Authorization: Bearer {{jwt_token}}
+
+< ./diary_payload.md
+
+> {% client.global.set("entry_id", response.body.id); %}
+
+###
+GET http://localhost:8081/diary/list/2021
+Authorization: Bearer {{jwt_token}}
+# TODO: test to make sure entry_id is in the list
+
+###
+
+GET http://localhost:8081/diary/{{entry_id}}
+Authorization: Bearer {{jwt_token}}
