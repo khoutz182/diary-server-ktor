@@ -6,7 +6,6 @@ import com.khoutz.config.initDb
 import com.khoutz.model.DiaryEntry
 import com.khoutz.model.User
 import com.khoutz.model.UserTable
-import com.khoutz.module.authModule
 import com.khoutz.module.defaultModule
 import com.khoutz.module.diaryController
 import io.ktor.application.*
@@ -36,6 +35,7 @@ import java.util.function.Consumer
 import kotlin.test.*
 
 const val TEST_USERNAME = "testUser"
+const val BUCKET = "bucket"
 val ENTRY_ID: UUID = UUID.randomUUID()
 
 class ApplicationTest {
@@ -62,8 +62,8 @@ class ApplicationTest {
 
     @Test
     fun `list diaries - yyyy`() {
-        withTestApplication({ setupTest(); diaryController(s3Client, BUCKET) }) {
-            handleRequest(HttpMethod.Get, "/diary/list/${Year.now()}").apply {
+        withTestApplication({ setupTest(s3Client) }) {
+            authRequest(HttpMethod.Get, "/diary/list/${Year.now()}").apply {
                 assertEquals(HttpStatusCode.OK, response.status())
                 response.content?.let {
                     assertContains(it, Year.now().toString())
@@ -77,11 +77,10 @@ class ApplicationTest {
     @Test
     fun `list diaries - yyyy-mm`() {
         withTestApplication({
-            setupTest()
-            diaryController(s3Client, BUCKET)
+            setupTest(s3Client)
         }) {
             val now = LocalDate.now()
-            handleRequest(HttpMethod.Get, "/diary/list/${now.year}/${now.monthValue}").apply {
+            authRequest(HttpMethod.Get, "/diary/list/${now.year}/${now.monthValue}").apply {
                 assertEquals(HttpStatusCode.OK, response.status())
                 response.content?.let {
                     assertContains(it, ENTRY_ID)
@@ -94,11 +93,10 @@ class ApplicationTest {
 
     @Test
     fun `get diary entry`() {
-        withTestApplication({ setupTest(); diaryController(s3Client, BUCKET) }) {
-            handleRequest(HttpMethod.Get, "/diary/${ENTRY_ID}").apply {
+        withTestApplication({ setupTest(s3Client) }) {
+            authRequest(HttpMethod.Get, "/diary/${ENTRY_ID}").apply {
                 assertEquals(HttpStatusCode.OK, response.status())
-                // TODO: Why is markdown not predefined?
-                assertEquals(response.headers[HttpHeaders.ContentType], ContentType("text", "markdown").toString())
+                assertEquals(response.headers[HttpHeaders.ContentType], ContentType.Application.Markdown.toString())
                 assertNotNull(response.content)
             }
 
@@ -120,11 +118,11 @@ class ApplicationTest {
             s3Client.putObject(any() as Consumer<PutObjectRequest.Builder>, any() as RequestBody)
         } returns PutObjectResponse.builder().build()
 
-        withTestApplication({ setupTest(); diaryController(s3Client, BUCKET) }) {
-            handleRequest(HttpMethod.Post, "/diary/${now.year}/${now.monthValue}/${now.dayOfMonth}?${queryParams}") {
+        withTestApplication({ setupTest(s3Client) }) {
+            authRequest(HttpMethod.Post, "/diary/${now.year}/${now.monthValue}/${now.dayOfMonth}?${queryParams}") {
                 addHeader(HttpHeaders.ContentLength, "${diaryBytes.size}")
                 setBody(diaryBytes)
-                call.authentication.principal = authenticatedPrincipal()
+//                call.authentication.principal = authenticatedPrincipal()
             }.apply {
                 assertEquals(HttpStatusCode.OK, response.status())
             }
@@ -133,22 +131,12 @@ class ApplicationTest {
             }
         }
     }
-
-    companion object {
-        private const val BUCKET = "bucket"
-    }
 }
 
-fun TestApplicationRequest.authenticatedPrincipal(): Principal {
-    val user = transaction {
-        User.find { UserTable.username eq TEST_USERNAME }.single()
-    }
-    return JWTPrincipal(JWT.decode(call.application.generateJwt(user)))
-}
+fun Application.setupTest(s3Client: S3Client) {
 
-fun Application.setupTest(): ApplicationConfig {
     // TODO: make it load from file
-    val config = (environment.config as MapApplicationConfig).apply {
+    (environment.config as MapApplicationConfig).apply {
         put("datasource.jdbc.url", "jdbc:h2:mem:regular;DB_CLOSE_DELAY=-1")
         put("datasource.jdbc.driver", "org.h2.Driver")
         put("jwt.audience", "diary-audience")
@@ -159,10 +147,20 @@ fun Application.setupTest(): ApplicationConfig {
         put("diary.user", TEST_USERNAME)
         put("diary.createUser", "true")
     }
-
     defaultModule(true)
-    authModule()
     initDb()
+    diaryController(s3Client, BUCKET)
+
+    // TODO: this would have been neat
+//    val mockAuth = PipelinePhase("MockAuthentication")
+//    val preAuthUser = transaction {
+//        User.find { UserTable.username eq TEST_USERNAME }.single()
+//    }
+//    receivePipeline.insertPhaseBefore(ApplicationCallPipeline.Call, mockAuth) // call isn't here? why not
+//    receivePipeline.insertPhaseAfter(ApplicationReceivePipeline.Before, mockAuth) // wat
+//    receivePipeline.intercept(mockAuth) {
+//        call.authentication.principal = JWTPrincipal(JWT.decode(call.application.generateJwt(preAuthUser)))
+//    }
 
     transaction {
         DiaryEntry.findById(ENTRY_ID) ?: run {
@@ -174,8 +172,6 @@ fun Application.setupTest(): ApplicationConfig {
             }
         }
     }
-
-    return config
 }
 
 fun <T> assertContains(searchText: String, value: T, message: String? = null) where T: CharSequence {
@@ -185,3 +181,23 @@ fun <T> assertContains(searchText: String, value: T, message: String? = null) wh
 fun <T> assertContains(searchText: String, value: T, message: String? = null) {
     assertContains(searchText, value.toString(), message)
 }
+
+/**
+ * Off the edge of the map by a bit. Handy dandy wrapper for the [handleRequest] method that adds an authentication
+ * [Principal].
+ */
+fun TestApplicationEngine.authRequest(
+    method: HttpMethod,
+    uri: String,
+    setup: TestApplicationRequest.() -> Unit = {}
+): TestApplicationCall {
+    val authedSetup: TestApplicationRequest.() -> Unit = {
+        val user = transaction {
+            User.find { UserTable.username eq TEST_USERNAME }.single()
+        }
+        call.authentication.principal = JWTPrincipal(JWT.decode(call.application.generateJwt(user)))
+        setup()
+    }
+    return handleRequest(method, uri, authedSetup)
+}
+

@@ -28,18 +28,18 @@ fun Application.diaryModule() {
 
     initDb()
     routing {
-        diaryController(s3Client(), s3Bucket())
+        authenticate("jwt") {
+            diaryController(s3Client(), s3Bucket())
+        }
     }
 }
 
 fun Application.diaryController(s3Client: S3Client, s3Bucket: String) {
     routing {
-        authenticate("jwt") {
-            route("/diary") {
-                listEntries()
-                createEntry(s3Client, s3Bucket)
-                getEntry(s3Client, s3Bucket)
-            }
+        route("/diary") {
+            listEntries()
+            createEntry(s3Client, s3Bucket)
+            getEntry(s3Client, s3Bucket)
         }
     }
 }
