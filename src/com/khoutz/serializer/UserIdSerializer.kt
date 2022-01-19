@@ -11,7 +11,7 @@ import kotlinx.serialization.encoding.Encoder
 /**
  * Serializes a [UserDTO.id] to a string, rather than the whole class
  */
-object UserIdSerializer: KSerializer<UserDTO> {
+object UserIdSerializer : KSerializer<UserDTO> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("userId", PrimitiveKind.STRING)
 
     override fun deserialize(decoder: Decoder): UserDTO {

@@ -7,14 +7,22 @@ import com.khoutz.config.s3Client
 import com.khoutz.model.DiaryEntry
 import com.khoutz.model.DiaryEntryTable
 import com.khoutz.model.User
-import io.ktor.application.*
-import io.ktor.auth.*
-import io.ktor.auth.jwt.*
-import io.ktor.features.*
-import io.ktor.http.*
-import io.ktor.request.*
-import io.ktor.response.*
-import io.ktor.routing.*
+import io.ktor.application.Application
+import io.ktor.application.call
+import io.ktor.auth.authenticate
+import io.ktor.features.MissingRequestParameterException
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.request.header
+import io.ktor.request.receiveStream
+import io.ktor.response.respond
+import io.ktor.response.respondBytes
+import io.ktor.routing.Route
+import io.ktor.routing.get
+import io.ktor.routing.post
+import io.ktor.routing.route
+import io.ktor.routing.routing
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.transaction
 import software.amazon.awssdk.core.sync.RequestBody
@@ -22,7 +30,7 @@ import software.amazon.awssdk.services.s3.S3Client
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
-import java.util.*
+import java.util.UUID
 
 fun Application.diaryModule() {
 
@@ -99,12 +107,12 @@ fun Route.createEntry(s3Client: S3Client, s3Bucket: String) {
 
 fun Route.listEntries() {
     get("/list/{year}/{month?}/{day?}") {
-        val year = call.parameters["year"] ?: throw MissingRequestParameterException("year")
-        val month = call.parameters["month"]
+        val year = call.parameters["year"]?.toInt() ?: throw MissingRequestParameterException("year")
+        val month = call.parameters["month"]?.toInt()
         val day = call.parameters["day"]
 
-        val startDate = LocalDate.of(year.toInt(), month?.toInt() ?: 1, day?.toInt() ?: 1).atStartOfDay(ZoneId.systemDefault())
-        var endDate = LocalDate.of(year.toInt(), month?.toInt() ?: 12, day?.toInt() ?: 1).atStartOfDay(ZoneId.systemDefault())
+        val startDate = LocalDate.of(year, month ?: 1, day?.toInt() ?: 1).atStartOfDay(ZoneId.systemDefault())
+        var endDate = LocalDate.of(year, month ?: 12, day?.toInt() ?: 1).atStartOfDay(ZoneId.systemDefault())
         if (day == null) {
             endDate = endDate.with(TemporalAdjusters.lastDayOfMonth())
         }

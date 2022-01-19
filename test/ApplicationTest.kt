@@ -8,17 +8,28 @@ import com.khoutz.model.User
 import com.khoutz.model.UserTable
 import com.khoutz.module.defaultModule
 import com.khoutz.module.diaryController
-import io.ktor.application.*
-import io.ktor.auth.*
-import io.ktor.auth.jwt.*
-import io.ktor.config.*
-import io.ktor.http.*
-import io.ktor.server.testing.*
+import io.ktor.application.Application
+import io.ktor.auth.Principal
+import io.ktor.auth.authentication
+import io.ktor.auth.jwt.JWTPrincipal
+import io.ktor.config.MapApplicationConfig
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.encodeURLParameter
+import io.ktor.server.testing.TestApplicationCall
+import io.ktor.server.testing.TestApplicationEngine
+import io.ktor.server.testing.TestApplicationRequest
+import io.ktor.server.testing.handleRequest
+import io.ktor.server.testing.setBody
+import io.ktor.server.testing.withTestApplication
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.Before
+import org.junit.Test
 import software.amazon.awssdk.core.ResponseInputStream
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.http.AbortableInputStream
@@ -30,9 +41,12 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse
 import java.time.Instant
 import java.time.LocalDate
 import java.time.Year
-import java.util.*
+import java.util.UUID
 import java.util.function.Consumer
-import kotlin.test.*
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 const val TEST_USERNAME = "testUser"
 const val BUCKET = "bucket"
@@ -94,7 +108,7 @@ class ApplicationTest {
     @Test
     fun `get diary entry`() {
         withTestApplication({ setupTest(s3Client) }) {
-            authRequest(HttpMethod.Get, "/diary/${ENTRY_ID}").apply {
+            authRequest(HttpMethod.Get, "/diary/$ENTRY_ID").apply {
                 assertEquals(HttpStatusCode.OK, response.status())
                 assertEquals(response.headers[HttpHeaders.ContentType], ContentType.Application.Markdown.toString())
                 assertNotNull(response.content)
@@ -109,7 +123,7 @@ class ApplicationTest {
     @Test
     fun `create diary entry`() {
         val now = LocalDate.now()
-        val diaryBytes = this.javaClass.getResourceAsStream("/diary_payload.md").readBytes()
+        val diaryBytes = this.javaClass.getResourceAsStream("/diary_payload.md")?.readBytes() ?: fail("unable to load mocked payload")
         val queryParams = mapOf("title" to "test")
             .map { "${it.key.encodeURLParameter()}=${it.value.encodeURLParameter()}" }
             .joinToString(separator = "&")
@@ -119,7 +133,7 @@ class ApplicationTest {
         } returns PutObjectResponse.builder().build()
 
         withTestApplication({ setupTest(s3Client) }) {
-            authRequest(HttpMethod.Post, "/diary/${now.year}/${now.monthValue}/${now.dayOfMonth}?${queryParams}") {
+            authRequest(HttpMethod.Post, "/diary/${now.year}/${now.monthValue}/${now.dayOfMonth}?$queryParams") {
                 addHeader(HttpHeaders.ContentLength, "${diaryBytes.size}")
                 setBody(diaryBytes)
 //                call.authentication.principal = authenticatedPrincipal()
@@ -147,7 +161,7 @@ fun Application.setupTest(s3Client: S3Client) {
         put("diary.user", TEST_USERNAME)
         put("diary.createUser", "true")
     }
-    defaultModule(true)
+    defaultModule(testing = true)
     initDb()
     diaryController(s3Client, BUCKET)
 
@@ -174,8 +188,8 @@ fun Application.setupTest(s3Client: S3Client) {
     }
 }
 
-fun <T> assertContains(searchText: String, value: T, message: String? = null) where T: CharSequence {
-    assertTrue(searchText.contains(value), message ?: "Expected to find ${value}, but not found in $searchText")
+fun <T> assertContains(searchText: String, value: T, message: String? = null) where T : CharSequence {
+    assertTrue(searchText.contains(value), message ?: "Expected to find $value, but not found in $searchText")
 }
 
 fun <T> assertContains(searchText: String, value: T, message: String? = null) {
@@ -200,4 +214,3 @@ fun TestApplicationEngine.authRequest(
     }
     return handleRequest(method, uri, authedSetup)
 }
-

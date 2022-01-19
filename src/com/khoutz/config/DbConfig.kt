@@ -19,7 +19,7 @@ fun Application.initDb() {
 
     Database.connect(jdbc, driver, dbUser, dbPassword)
     transaction {
-        SchemaUtils.createMissingTablesAndColumns(UserTable, DiaryEntryTable, )
+        SchemaUtils.createMissingTablesAndColumns(UserTable, DiaryEntryTable)
 
         if (createUser) {
             val appUsername = environment.config.property("diary.user").getString()

@@ -6,16 +6,25 @@ import com.khoutz.model.AuthRequest
 import com.khoutz.model.User
 import com.khoutz.model.UserTable
 import com.khoutz.utils.logger
-import io.ktor.application.*
-import io.ktor.auth.*
-import io.ktor.auth.jwt.*
-import io.ktor.request.*
-import io.ktor.response.*
-import io.ktor.routing.*
+import io.ktor.application.Application
+import io.ktor.application.ApplicationCall
+import io.ktor.application.call
+import io.ktor.application.install
+import io.ktor.auth.Authentication
+import io.ktor.auth.UnauthorizedResponse
+import io.ktor.auth.authentication
+import io.ktor.auth.jwt.JWTPrincipal
+import io.ktor.auth.jwt.jwt
+import io.ktor.request.receive
+import io.ktor.response.respond
+import io.ktor.routing.Route
+import io.ktor.routing.post
+import io.ktor.routing.route
+import io.ktor.routing.routing
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.mindrot.jbcrypt.BCrypt
 import software.amazon.awssdk.http.HttpStatusCode
-import java.util.*
+import java.util.UUID
 
 fun Application.authModule() {
     val jwtAudience = environment.config.property("jwt.audience").getString()
@@ -51,7 +60,7 @@ fun Route.authenticate() {
             }.first()
         }
         if (BCrypt.checkpw(requestUser.password, dbUser.password)) {
-            val token = application.generateJwt(dbUser)
+            val token = call.application.generateJwt(dbUser)
             call.respond(token)
             return@post
         }

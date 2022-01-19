@@ -3,25 +3,24 @@ package com.khoutz.model
 import com.khoutz.serializer.InstantSerializer
 import com.khoutz.serializer.UUIDSerializer
 import com.khoutz.serializer.UserIdSerializer
-
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.dao.UUIDEntity
 import org.jetbrains.exposed.dao.UUIDEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.UUIDTable
-import org.jetbrains.exposed.sql.`java-time`.timestamp
+import org.jetbrains.exposed.sql.javatime.timestamp
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 
-object DiaryEntryTable: UUIDTable("diary_entry") {
+object DiaryEntryTable : UUIDTable("diary_entry") {
     val title = text("title")
     val description = text("description").nullable()
     val diaryDate = timestamp("diary_date")
     val user = reference("user", UserTable)
 }
 
-class DiaryEntry(id: EntityID<UUID>): UUIDEntity(id) {
-    companion object: UUIDEntityClass<DiaryEntry>(DiaryEntryTable)
+class DiaryEntry(id: EntityID<UUID>) : UUIDEntity(id) {
+    companion object : UUIDEntityClass<DiaryEntry>(DiaryEntryTable)
     var title by DiaryEntryTable.title
     var description by DiaryEntryTable.description
     var diaryDate by DiaryEntryTable.diaryDate

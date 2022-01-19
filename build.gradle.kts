@@ -12,9 +12,12 @@ val mockk_version: String by project
 
 plugins {
     application
-    kotlin("jvm") version "1.4.30"
-    kotlin("plugin.serialization") version "1.4.30"
+    kotlin("jvm") version "1.6.10"
+    kotlin("plugin.serialization") version "1.6.10"
     id("com.github.johnrengelman.shadow") version "6.1.0"
+
+    // Autoformatting
+    id("org.jlleitschuh.gradle.ktlint") version "10.2.1"
 }
 
 group = "com.khoutz"
@@ -26,8 +29,7 @@ application {
 
 repositories {
     mavenLocal()
-    jcenter()
-    maven { url = uri("https://kotlin.bintray.com/ktor") }
+    mavenCentral()
 }
 
 dependencies {
@@ -59,6 +61,16 @@ dependencies {
     testImplementation("com.h2database:h2:$h2_version")
 }
 
+kotlin {
+    sourceSets {
+        val test by getting {
+            dependencies {
+                implementation(kotlin("test")) // This brings all the platform dependencies automatically
+            }
+        }
+    }
+}
+
 kotlin.sourceSets["main"].kotlin.srcDirs("src")
 kotlin.sourceSets["test"].kotlin.srcDirs("test")
 
@@ -69,7 +81,6 @@ tasks.withType<KotlinCompile> {
     kotlinOptions {
         freeCompilerArgs = listOf("-Xjsr305=strict")
         jvmTarget = "1.8"
-        useIR = true
     }
 }
 

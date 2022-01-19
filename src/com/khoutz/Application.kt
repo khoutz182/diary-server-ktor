@@ -1,6 +1,6 @@
 package com.khoutz
 
-import io.ktor.http.*
+import io.ktor.http.ContentType
 
 // Misc Constants
 val ContentType.Application.Markdown: ContentType
