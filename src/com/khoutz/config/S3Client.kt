@@ -1,6 +1,6 @@
 package com.khoutz.config
 
-import io.ktor.application.Application
+import io.ktor.server.application.Application
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
@@ -10,10 +10,10 @@ import java.net.URI
 
 fun Application.s3Client(): S3Client {
 
-    val region = environment.config.property("s3.region").getString()
-    val accessKey = environment.config.property("s3.access.key").getString()
-    val secretKey = environment.config.property("s3.secret.key").getString()
-    val endpointUrl = environment.config.propertyOrNull("s3.endpoint.url")?.getString()
+    val region = environment.config.property("storage.s3.region").getString()
+    val accessKey = environment.config.property("storage.s3.access.key").getString()
+    val secretKey = environment.config.property("storage.s3.secret.key").getString()
+    val endpointUrl = environment.config.propertyOrNull("storage.s3.endpoint.url")?.getString()
 
     val credentialsProvider = StaticCredentialsProvider.create(
         AwsBasicCredentials.create(accessKey, secretKey)

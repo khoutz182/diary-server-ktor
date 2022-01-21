@@ -4,7 +4,8 @@ import com.khoutz.model.DiaryEntryTable
 import com.khoutz.model.User
 import com.khoutz.model.UserTable
 import com.khoutz.utils.randomPassword
-import io.ktor.application.*
+import io.ktor.server.application.Application
+import io.ktor.server.application.log
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction

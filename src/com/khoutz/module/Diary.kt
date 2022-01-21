@@ -2,57 +2,55 @@ package com.khoutz.module
 
 import com.khoutz.Markdown
 import com.khoutz.config.initDb
-import com.khoutz.config.s3Bucket
-import com.khoutz.config.s3Client
 import com.khoutz.model.DiaryEntry
 import com.khoutz.model.DiaryEntryTable
 import com.khoutz.model.User
-import io.ktor.application.Application
-import io.ktor.application.call
-import io.ktor.auth.authenticate
-import io.ktor.features.MissingRequestParameterException
+import com.khoutz.storage.storage
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.request.header
-import io.ktor.request.receiveStream
-import io.ktor.response.respond
-import io.ktor.response.respondBytes
-import io.ktor.routing.Route
-import io.ktor.routing.get
-import io.ktor.routing.post
-import io.ktor.routing.route
-import io.ktor.routing.routing
+import io.ktor.server.application.Application
+import io.ktor.server.application.application
+import io.ktor.server.application.call
+import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.MissingRequestParameterException
+import io.ktor.server.request.header
+import io.ktor.server.request.receiveStream
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
+import io.ktor.server.routing.routing
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.transactions.transaction
-import software.amazon.awssdk.core.sync.RequestBody
-import software.amazon.awssdk.services.s3.S3Client
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 fun Application.diaryModule() {
-
     initDb()
+
     routing {
         authenticate("jwt") {
-            diaryController(s3Client(), s3Bucket())
+            diaryController()
         }
     }
 }
 
-fun Application.diaryController(s3Client: S3Client, s3Bucket: String) {
+fun Application.diaryController() {
     routing {
         route("/diary") {
             listEntries()
-            createEntry(s3Client, s3Bucket)
-            getEntry(s3Client, s3Bucket)
+            createEntry()
+            getEntry()
         }
     }
 }
 
-fun Route.getEntry(s3Client: S3Client, s3Bucket: String) {
+fun Route.getEntry() {
     get("/{id}") {
         val diaryId = UUID.fromString(call.parameters["id"]) ?: throw MissingRequestParameterException("id")
         val userId = call.getAuthedUserID()
@@ -61,19 +59,15 @@ fun Route.getEntry(s3Client: S3Client, s3Bucket: String) {
                 DiaryEntryTable.id eq diaryId and (DiaryEntryTable.user eq userId)
             }.single().dto()
         }
-
-        s3Client.getObject {
-            it.bucket(s3Bucket)
-                .key(diaryEntry.getKey())
-        }.use { s3ResponseStream ->
+        application.storage().retrieve(diaryEntry.getKey()).use {
             call.respondBytes(ContentType.Application.Markdown, HttpStatusCode.OK) {
-                s3ResponseStream.readBytes()
+                it.readBytes()
             }
         }
     }
 }
 
-fun Route.createEntry(s3Client: S3Client, s3Bucket: String) {
+fun Route.createEntry() {
     post("/{year}/{month}/{day}") {
         val userUUID = call.getAuthedUserID() ?: return@post
         val year = call.parameters["year"] ?: throw MissingRequestParameterException("year")
@@ -90,16 +84,12 @@ fun Route.createEntry(s3Client: S3Client, s3Bucket: String) {
             }.dto()
         }
 
-        // TODO: Shouldn't require ContentLength header
         val contentLength = call.request.header(HttpHeaders.ContentLength)?.toLong()
             ?: throw MissingRequestParameterException(HttpHeaders.ContentLength)
-        s3Client.putObject(
-            {
-                it.bucket(s3Bucket)
-                it.key(entry.getKey())
-                it.contentType(ContentType.Application.Markdown.toString())
-            },
-            RequestBody.fromInputStream(call.receiveStream(), contentLength)
+        application.storage().store(
+            entry.getKey(),
+            call.receiveStream(),
+            contentLength
         )
         call.respond(entry)
     }

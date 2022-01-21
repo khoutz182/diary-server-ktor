@@ -4,7 +4,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.interfaces.JWTVerifier
 import com.khoutz.model.User
-import io.ktor.application.Application
+import io.ktor.server.application.Application
 import java.util.Date
 
 // https://medium.com/@er.imran4u/kotlin-ktor-with-jwt-authentication-ed78251629c2
